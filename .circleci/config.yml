@@ -1,0 +1,176 @@
+# Golang CircleCI 2.0 configuration file
+# memo: you should use the below environment variables:
+#  AWS_ACCESS_KEY_ID
+#  AWS_SECRET_ACCESS_KEY
+#  AWS_DEFAULT_REGION
+#  ECR_DOMAIN
+# Check https://circleci.com/docs/2.0/language-go/ for more details
+version: 2
+jobs:
+#  ommit build, test.
+#  build:
+#    docker:
+#      # specify the version
+#      - image: circleci/golang:1.9
+#
+#      # Specify service dependencies here if necessary
+#      # CircleCI maintains a library of pre-built images
+#      # documented at https://circleci.com/docs/2.0/circleci-images/
+#      # - image: circleci/postgres:9.4
+#
+#    #### TEMPLATE_NOTE: go expects specific checkout path representing url
+#    #### expecting it in the form of
+#    ####   /go/src/github.com/circleci/go-tool
+#    ####   /go/src/bitbucket.org/circleci/go-tool
+##    working_directory: /go/src/github.com/{{ORG_NAME}}/{{REPO_NAME}}
+#    steps:
+#      - checkout
+#
+#      # specify any bash command here prefixed with `run: `
+#      - run: go get -v -t -d ./...
+#      - run: go test -v ./...
+
+  build_image:
+    docker:
+      - image: docker:18.09.0
+    steps:
+      - checkout
+      - setup_remote_docker
+      - run:
+          name: install aws cli
+          command: |
+            apk add --no-cache --update py-pip
+            pip install awscli
+      - run:
+          name: build image
+          command: |
+            $(aws ecr get-login --no-include-email --region ap-northeast-1)
+            docker build -t ${ECR_DOMAIN}/grpc-test-image:$CIRCLE_SHA1 -t ${ECR_DOMAIN}/grpc-test-image:latest .
+      - run:
+          name: push docker image
+          command: |
+            docker push ${ECR_DOMAIN}/grpc-test-image:$CIRCLE_SHA1
+            docker push ${ECR_DOMAIN}/grpc-test-image:latest
+
+workflows:
+  version: 2
+  test:
+    jobs:
+#      - build
+      - build_image:
+#          requires:
+#            - build
+          filters:
+            branches:
+              only: master
+
+# CircleCI 2.0 configuration file
+#
+#
+#version: 2
+#jobs:
+#  build:
+#    docker:
+#      # specify the version you desire here
+#      - image: circleci/ruby:2.6.3-node-browsers
+#
+#      # Specify service dependencies here if necessary
+#      # CircleCI maintains a library of pre-built images
+#      # documented at https://circleci.com/docs/2.0/circleci-images/
+#      # - image: circleci/postgres:9.4
+#
+#    working_directory: ~/repo
+#
+#    steps:
+#      - checkout
+#
+#      # Download and cache dependencies
+#      - restore_cache:
+#          keys:
+#            - v1-dependencies-{{ checksum "Gemfile.lock" }}
+#            # fallback to using the latest cache if no exact match is found
+#            - v1-dependencies-
+#
+#      - run:
+#          name: install dependencies
+#          command: |
+#            bundle install --jobs=4 --retry=3 --path vendor/bundle
+#
+#      - save_cache:
+#          paths:
+#            - ./vendor/bundle
+#          key: v1-dependencies-{{ checksum "Gemfile.lock" }}
+#
+#      # Database setup
+#      - run: yarn install --check-files
+#      - run: bundle exec rake db:create
+#      - run: bundle exec rake db:schema:load
+#
+#      # run tests!
+#      - run:
+#          name: run tests
+#          command: |
+#            DISABLE_SPRING=true bundle exec rails test
+#
+#  build_image:
+#    docker:
+#      - image: docker:18.09.0
+#    steps:
+#      - checkout
+#      - setup_remote_docker
+#      - run:
+#          name: install aws cli
+#          command: |
+#            apk add --no-cache --update py-pip
+#            pip install awscli
+#      - run:
+#          name: build image
+#          command: |
+#            $(aws ecr get-login --no-include-email --region ap-northeast-1)
+#            docker build -t ${ECR_DOMAIN}:$CIRCLE_SHA1 -t ${ECR_DOMAIN}:latest --build-arg RAILS_MASTER_KEY=${RAILS_MASTER_KEY} --build-arg RAILS_ENV=production .
+#      - run:
+#          name: push docker image
+#          command: |
+#            docker push ${ECR_DOMAIN}:$CIRCLE_SHA1
+#            docker push ${ECR_DOMAIN}:latest
+#  deploy:
+#    docker:
+#      - image: circleci/python:3.7
+#    steps:
+#      - run:
+#          name: install aws cli
+#          command: |
+#            sudo pip install awscli
+#      - run:
+#          name: download jq
+#          command: |
+#            wget https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64
+#            mv jq-linux64 jq
+#      - run:
+#          name: login
+#          command: |
+#            $(aws ecr get-login --no-include-email --region ap-northeast-1)
+#      - run:
+#          name: deploy
+#          command: |
+#            aws ecs describe-task-definition --task-definition rails-service | jq '.taskDefinition | { containerDefinitions: .containerDefinitions }' > task_definition.json
+#            aws ecs register-task-definition --family rails-service --cli-input-json file://task_definition.json
+#            aws ecs update-service --cluster sample-ecs-cluster --service rails-service --task-definition rails-service
+#
+#workflows:
+#  version: 2
+#  test:
+#    jobs:
+#      - build
+#      - build_image:
+#          requires:
+#            - build
+#          filters:
+#            branches:
+#              only: master
+#      - deploy:
+#          requires:
+#            - build_image
+#          filters:
+#            branches:
+#              only: master
